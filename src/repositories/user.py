@@ -12,20 +12,20 @@ class UserRepository:
         validated_data = UserSchema(**user_data).dict()
 
         # Check if email already exists
-        if UserModel.find_by_email(user_data["email"]):
+        if UserModel.find_by_email(validated_data["email"]):
             raise ValueError("Email already exists!")
 
         # Hash password
-        user_data["password"] = bcrypt.hashpw(
-            user_data["password"].encode("utf-8"), bcrypt.gensalt()
+        validated_data["password"] = bcrypt.hashpw(
+            validated_data["password"].encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
 
         # Create username from email
-        user_data["username"] = user_data["email"].split("@")[0]
-        user_data["verifyToken"] = str(uuid.uuid4())
+        validated_data["username"] = validated_data["email"].split("@")[0]
+        validated_data["verifyToken"] = str(uuid.uuid4())
 
        # Save user to database
-        createdUserId = UserModel.create_new(user_data)
+        createdUserId = UserModel.create_new(validated_data)
         get_new_user = UserModel.find_one_by_id(createdUserId)
 
         return pick_user(get_new_user)  # Return formatted user data
