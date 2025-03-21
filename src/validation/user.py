@@ -1,5 +1,12 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+from src.utils.constants import (
+    EMAIL_RULE,
+    EMAIL_RULE_MESSAGE,
+    PASSWORD_RULE,
+    PASSWORD_RULE_MESSAGE,
+)
+
 
 class UserSchema(BaseModel):
-    email: str = Field(..., pattern=r"^[\w\.-]+@[\w\.-]+\.\w+$")
-    password: str = Field(..., min_length=6)
+    email: EmailStr = Field(..., pattern=EMAIL_RULE.pattern, description=EMAIL_RULE_MESSAGE)
+    password: str = Field(..., min_length=8, description=PASSWORD_RULE_MESSAGE)
