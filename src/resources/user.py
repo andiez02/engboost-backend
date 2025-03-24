@@ -1,4 +1,4 @@
-from flask import request, jsonify
+from flask import request, jsonify, make_response
 from pydantic import BaseModel, EmailStr, constr, ValidationError, Field
 from src.repositories.user import UserRepository
 from src.exceptions import ApiError 
@@ -27,9 +27,9 @@ class UserResource:
     def create_new():
         try:
             # Validate request body using Pydantic
-            verifiedData = RegisterValidation(**request.json)
+            verified_data = RegisterValidation(**request.json)
            
-            request_data = verifiedData.model_dump()
+            request_data = verified_data.model_dump()
 
             # Call repository to create user
             result = UserRepository.create_new(request_data)
@@ -49,9 +49,9 @@ class UserResource:
     @staticmethod
     def verify_account():
         try:
-            verifiedData = VerifyAccountValidation(**request.json)
+            verified_data = VerifyAccountValidation(**request.json)
 
-            request_data = verifiedData.model_dump()
+            request_data = verified_data.model_dump()
 
             result = UserRepository.verify_account(request_data)
 
@@ -70,16 +70,39 @@ class UserResource:
     @staticmethod
     def login():
         try:
-            verifiedData = LoginValidation(**request.json)
+            verified_data = LoginValidation(**request.json)
 
-            request_data = verifiedData.model_dump()
+            request_data = verified_data.model_dump()
 
             result = UserRepository.login(request_data)
 
             # return http only cookie for browser
             print(result)
 
-            return jsonify({"message": "Account login successfully", "user": result}), 200
+            response = make_response(jsonify({
+                "message": "Account login successfully",
+                "user": result
+            }), 200)
+
+            response.set_cookie(
+                key="accessToken",
+                value=result["accessToken"],
+                httponly=True,
+                secure=True,
+                samesite="None",
+                max_age=60 * 60 * 24 * 14  # 14 ngày
+            )
+
+            response.set_cookie(
+                key="refreshToken",
+                value=result["refreshToken"],
+                httponly=True,
+                secure=True,
+                samesite="None",
+                max_age=60 * 60 * 24 * 14
+            )
+
+            return response
         
         except ValidationError as e:
             raise ApiError(400, str(e))  
@@ -89,7 +112,46 @@ class UserResource:
             raise e 
         except Exception as e:
             print(f"Unexpected error: {e}") 
-            raise ApiError(500, "Something went wrong!") 
+            raise ApiError(500, "Something went wrong!")
+
+    @staticmethod
+    def logout():
+        try:
+            response = make_response(jsonify({"loggedOut": True}), 200)
+            response.delete_cookie("accessToken")
+            response.delete_cookie("refreshToken")
+            return response
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            raise ApiError(500, "Something went wrong!")
+
+    @staticmethod
+    def refresh_token():
+        try:
+            refresh_token = request.cookies.get("refreshToken")
+            if not refresh_token:
+                raise ApiError(403, "Please Sign In! (Error from refresh Token)")
+
+            result = UserRepository.refresh_token(refresh_token)
+
+            response = make_response(jsonify(result), 200)
+            response.set_cookie(
+                key="accessToken",
+                value=result["accessToken"],
+                httponly=True,
+                secure=True,
+                samesite="None",
+                max_age=60 * 60 * 24 * 14  
+            )
+
+            return response
+
+        except ApiError as e:
+            raise e
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            raise ApiError(500, "Something went wrong!")
+
 
     @staticmethod
     def get_user_by_id(user_id):
