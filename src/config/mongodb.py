@@ -10,7 +10,7 @@ class MongoDB:
     @classmethod
     def connect(cls):
         if cls.client is None:
-            print(f"🔄 Connecting to MongoDB with URI: {EnvConfig.MONGO_URI}")  
+            print(f"🔄 Connecting to MongoDB with URI")  
             cls.client = MongoClient(EnvConfig.MONGO_URI, server_api=ServerApi('1'), tlsCAFile=certifi.where())
             cls.db = cls.client.get_database(EnvConfig.MONGO_DB_NAME)
             try:

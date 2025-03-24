@@ -140,19 +140,45 @@ class UserRepository:
                 REFRESH_TOKEN_SECRET,
                 REFRESH_TOKEN_LIFE
             )
+
+            user = serialize_mongo_data(exist_user)
+            user["accessToken"] = access_token
+            user["refreshToken"] = refresh_token
             
             # Trả về thông tin người dùng kèm token
-            return {
-                "accessToken": access_token,
-                "refreshToken": refresh_token,
-                "user": serialize_mongo_data(exist_user)
-            }
+            return user
+    
         except ApiError as e:
+            print(f"Unexpected error during login: {e}")  
             raise e 
         except Exception as e:
-            print(f"Unexpected error during login: {e}")  # Log the error for debugging
-            raise ApiError(500, "An unexpected error occurred during login.")  # Provide a more specific error me
-    
+            print(f"Unexpected error during login: {e}")  
+            raise ApiError(500, "An unexpected error occurred during login.") 
+
+    @staticmethod
+    def refresh_token(client_refresh_token):
+        try:
+            # Giải mã refreshToken để kiểm tra tính hợp lệ
+            refresh_token_decoded = JwtProvider.verify_token(
+                client_refresh_token, REFRESH_TOKEN_SECRET
+            )
+
+            user_info = {
+                "_id": refresh_token_decoded["_id"],
+                "email": refresh_token_decoded["email"],
+            }
+
+            # Tạo accessToken mới
+            access_token = JwtProvider.generate_token(
+                user_info,
+                ACCESS_TOKEN_SECRET,
+                ACCESS_TOKEN_LIFE  # Thời gian sống của accessToken
+            )
+
+            return {"accessToken": access_token}
+        except Exception as error:
+            raise error
+
     @staticmethod
     def find_by_email(email):
         try:
