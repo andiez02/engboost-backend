@@ -1,7 +1,7 @@
 from flask import request, jsonify, make_response
 from pydantic import BaseModel, EmailStr, constr, ValidationError, Field
 from src.repositories.user import UserRepository
-from src.exceptions import ApiError 
+from src.utils.api_error import ApiError
 from src.utils.constants import (
     EMAIL_RULE,
     EMAIL_RULE_MESSAGE,

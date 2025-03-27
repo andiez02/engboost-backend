@@ -2,7 +2,7 @@ from flask import request, jsonify
 import jwt
 from functools import wraps
 from src.config.environment import ACCESS_TOKEN_SECRET
-from src.exceptions import ApiError
+from src.utils.api_error import ApiError
 
 def is_authorized(f):
     @wraps(f)

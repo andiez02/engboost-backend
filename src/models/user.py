@@ -9,7 +9,7 @@ from src.utils.constants import (
     PASSWORD_RULE,
     PASSWORD_RULE_MESSAGE,
 )
-from src.exceptions import ApiError  # Import ApiError để xử lý lỗi
+from src.utils.api_error import ApiError
 
 class UserSchemaDB(BaseModel):
     email: EmailStr = Field(..., pattern=EMAIL_RULE.pattern, description=EMAIL_RULE_MESSAGE)

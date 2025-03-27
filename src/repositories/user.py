@@ -1,10 +1,10 @@
 from src.models.user import UserModel
 from src.utils.formatters import pick_user
 from src.utils.mongo_helper import serialize_mongo_data
+from src.utils.api_error import ApiError
 from src.validation.user import UserSchema
 from src.config.brevo import send_email
 from src.config.environment import WEBSITE_DOMAIN, ACCESS_TOKEN_SECRET, ACCESS_TOKEN_LIFE, REFRESH_TOKEN_SECRET, REFRESH_TOKEN_LIFE
-from src.exceptions import ApiError 
 from src.config.jwt_provider import JwtProvider
 import bcrypt
 import uuid
