@@ -5,10 +5,13 @@ from src.config.mongodb import MongoDB
 from middleware.error_handling import error_handling_middleware
 import atexit
 from flask_cors import CORS
+from flask import jsonify
+
+
 
 app = Flask(__name__)
 # Cấu hình CORS
-CORS(app, supports_credentials=True)  
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 app.config["DEBUG"] = True 
 
 # Đăng ký middleware xử lý lỗi
@@ -19,7 +22,7 @@ app.register_blueprint(api_bp)
 
 @app.route("/")
 def home():
-    return {"message": "Welcome to Flask API with MongoDB"}
+    return jsonify({"message": "Welcome to Flask API with MongoDB"})
 
 # Kết nối DB khi server khởi động
 MongoDB.connect()

@@ -162,3 +162,10 @@ class UserResource:
         # Convert ObjectId to string for JSON response
         user["_id"] = str(user["_id"])
         return jsonify(user), 200
+    
+    @staticmethod
+    def get_all_users():
+        from src.models.user import UserModel
+
+        users = UserModel.find_all()  # tùy theo cách bạn tổ chức
+        return [user.to_dict() for user in users], 200
