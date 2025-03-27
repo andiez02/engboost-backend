@@ -36,7 +36,7 @@ class UserModel:
     def create_new(cls, user_data):
         """Validate before saving to DB"""
         try:
-            validated_user = UserSchemaDB(**user_data)  # Validate again
+            validated_user = UserSchemaDB(**user_data) 
             result = cls.USER_COLLECTION_NAME.insert_one(validated_user.model_dump())
             return str(result.inserted_id)
         except Exception as e:

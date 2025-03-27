@@ -9,7 +9,6 @@ user_bp.route("/verify", methods=["PUT"])(UserResource.verify_account)
 user_bp.route("/login", methods=["POST"])(UserResource.login)
 user_bp.route("/logout", methods=["DELETE"])(UserResource.logout)
 user_bp.route("/refresh_token", methods=["GET"])(UserResource.refresh_token)
-user_bp.route("/get_user", methods=["GET"])(UserResource.get_user_by_id)
 
 
 
