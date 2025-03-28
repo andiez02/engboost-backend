@@ -91,9 +91,8 @@ class UserModel:
         
     @staticmethod
     def find_all():
-        """Lấy danh sách tất cả người dùng (chưa bị xóa)"""
         try:
-            users_cursor = UserModel.USER_COLLECTION_NAME.find({"_destroy": False})
+            users_cursor = UserModel.USER_COLLECTION_NAME.find({"_destroy": False}, {"password": 0})
             users = []
             for user in users_cursor:
                 user["_id"] = str(user["_id"])
@@ -101,4 +100,3 @@ class UserModel:
             return users
         except Exception as e:
             raise ApiError(500, "Lỗi khi lấy danh sách người dùng.")
-

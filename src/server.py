@@ -9,9 +9,10 @@ from flask import jsonify
 
 
 
+
 app = Flask(__name__)
 # Cấu hình CORS
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
+CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
 app.config["DEBUG"] = True 
 
 # Đăng ký middleware xử lý lỗi
@@ -32,3 +33,7 @@ atexit.register(MongoDB.close)
 
 if __name__ == "__main__":
     app.run(host="localhost", port=EnvConfig.APP_PORT, debug=True)
+
+@app.route("/test")
+def test():
+    return jsonify({"message": "CORS OK!"})

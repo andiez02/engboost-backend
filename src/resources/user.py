@@ -1,6 +1,7 @@
 from flask import request, jsonify, make_response
 from pydantic import BaseModel, EmailStr, constr, ValidationError, Field
 from src.repositories.user import UserRepository
+from src.models.user import UserModel
 from src.exceptions import ApiError 
 from src.utils.constants import (
     EMAIL_RULE,
@@ -164,8 +165,11 @@ class UserResource:
         return jsonify(user), 200
     
     @staticmethod
+    @staticmethod
     def get_all_users():
-        from src.models.user import UserModel
-
-        users = UserModel.find_all()  # tùy theo cách bạn tổ chức
-        return [user.to_dict() for user in users], 200
+        try:
+            users = UserModel.find_all()
+            return jsonify(users), 200
+        except Exception as e:
+            print("Lỗi khi lấy users:", e)
+            raise ApiError(500, "Server error")
