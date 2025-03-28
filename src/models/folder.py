@@ -6,12 +6,14 @@ from src.utils.api_error import ApiError
 from src.utils.error_handlers import model_error_handler
 import re
 import logging
+from pymongo import ReturnDocument
+
 
 class FolderSchemaDB(BaseModel):
     title: str = Field(..., min_length=1, max_length=30)
     user_id: str  # ID của người tạo folder
-    flashcard_count: int = Field(default=0)  # Số lượng flashcard trong folder
-    is_public: bool = Field(default=False)  # Folder có công khai không
+    flashcard_count: int = Field(default=0)  
+    is_public: bool = Field(default=False) 
     
     # Auto-generated fields
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -125,7 +127,7 @@ class FolderModel:
         update_data["updated_at"] = datetime.utcnow()
 
         result = cls.FOLDER_COLLECTION_NAME.find_one_and_update(
-            {"_id": ObjectId(folder_id), "_destroy": False},
+            {"_id": ObjectId(folder_id)},
             {"$set": update_data},
             return_document=True
         )
@@ -133,18 +135,17 @@ class FolderModel:
         if result:
             result["_id"] = str(result["_id"])
         return result
-
+    
     @classmethod
     @model_error_handler
     def delete(cls, folder_id):
-        """Soft delete a folder"""
+        """Permanently delete a folder from database"""
         if not ObjectId.is_valid(folder_id):
             raise ApiError(400, "Invalid folder ID")
 
-        result = cls.FOLDER_COLLECTION_NAME.find_one_and_update(
-            {"_id": ObjectId(folder_id)},
-            {"$set": {"_destroy": True, "updated_at": datetime.utcnow()}},
-            return_document=True
+        # Xóa vĩnh viễn folder khỏi database
+        result = cls.FOLDER_COLLECTION_NAME.find_one_and_delete(
+            {"_id": ObjectId(folder_id)}
         )
         
         if result:
@@ -158,8 +159,11 @@ class FolderModel:
         if not ObjectId.is_valid(folder_id):
             raise ApiError(400, "Invalid folder ID")
 
+        logging.info(f"Incrementing flashcard count for folder {folder_id} by {increment}")
+        query = {"_id": ObjectId(folder_id)}
+        logging.info(f"Query for updating folder: {query}")
         result = cls.FOLDER_COLLECTION_NAME.find_one_and_update(
-            {"_id": ObjectId(folder_id), "_destroy": False},
+            query,
             {
                 "$inc": {"flashcard_count": increment},
                 "$set": {"updated_at": datetime.utcnow()}
@@ -168,5 +172,6 @@ class FolderModel:
         )
         
         if result:
-            result["_id"] = str(result["_id"])
-        return result
+            logging.info(f"Updated flashcard count for folder {folder_id}: {result['flashcard_count']}")
+        else:
+            logging.error(f"Failed to update flashcard count for folder {folder_id}")

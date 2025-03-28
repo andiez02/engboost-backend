@@ -1,4 +1,5 @@
 from src.models.folder import FolderModel
+from src.models.flashcard import FlashcardModel
 from src.utils.api_error import ApiError
 from src.utils.error_handlers import repo_error_handler
 from src.utils.mongo_helper import serialize_mongo_data
@@ -106,9 +107,15 @@ class FolderRepository:
         if folder["user_id"] != user_id:
             raise ApiError(403, "You don't have permission to delete this folder")
             
+        # Xóa tất cả flashcard thuộc folder trước
+        try:
+            FlashcardModel.delete_by_folder(folder_id)
+        except Exception as e:
+            logging.error(f"Error deleting flashcards for folder {folder_id}: {str(e)}")
+            raise ApiError(500, "Error deleting flashcards")
+
         # Xóa folder
         deleted_folder = FolderModel.delete(folder_id)
         
-        # Lưu ý: Khi bạn thêm phần Flashcard, bạn sẽ cần thêm code để đánh dấu tất cả flashcard trong folder là đã xóa
         
         return serialize_mongo_data(deleted_folder)
