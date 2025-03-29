@@ -7,7 +7,7 @@ class ApiError(Exception):
         :param status_code: HTTP status code (int)
         :param message: Thông báo lỗi (str)
         """
-        super().__init__(message)  # Kế thừa `Exception`
+        super().__init__(message) 
         self.status_code = status_code
         self.message = message
 

@@ -1,5 +1,5 @@
 from flask import jsonify
-from src.exceptions import ApiError
+from src.utils.api_error import ApiError
 
 def error_handling_middleware(app):
     @app.errorhandler(ApiError)
