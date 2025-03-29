@@ -165,11 +165,25 @@ class UserResource:
         return jsonify(user), 200
     
     @staticmethod
-    @staticmethod
     def get_all_users():
         try:
             users = UserModel.find_all()
+            print("🧪 All users from DB:", users)
             return jsonify(users), 200
         except Exception as e:
             print("Lỗi khi lấy users:", e)
             raise ApiError(500, "Server error")
+        
+    @staticmethod
+    def delete_user(user_id):
+        try:
+            UserRepository.delete_user(user_id)
+            return jsonify({"message": "Xoá người dùng thành công"}), 200
+        except ApiError as e:
+            raise e
+        except Exception as e:
+            print("Lỗi xoá người dùng:", e)
+            raise ApiError(500, "Server error")
+
+
+

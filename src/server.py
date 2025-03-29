@@ -2,6 +2,7 @@ from flask import Flask
 from src.routes import api_bp
 from src.config.environment import EnvConfig
 from src.config.mongodb import MongoDB
+from src.routes.user import user_bp
 from middleware.error_handling import error_handling_middleware
 import atexit
 from flask_cors import CORS
@@ -19,7 +20,7 @@ app.config["DEBUG"] = True
 error_handling_middleware(app)
 
 # Đăng ký Blueprint
-app.register_blueprint(api_bp)
+app.register_blueprint(user_bp, url_prefix="/api/users")
 
 @app.route("/")
 def home():
@@ -32,7 +33,8 @@ MongoDB.connect()
 atexit.register(MongoDB.close)
 
 if __name__ == "__main__":
-    app.run(host="localhost", port=EnvConfig.APP_PORT, debug=True)
+    app.run(host="localhost", port=5001, debug=True)
+
 
 @app.route("/test")
 def test():

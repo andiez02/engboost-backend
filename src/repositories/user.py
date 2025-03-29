@@ -108,8 +108,15 @@ class UserRepository:
     @staticmethod
     def login(reqData):
         try:
-            exist_user = UserModel.find_one_by_email(reqData.get("email"))
-
+            # ⚠️ Chỉ lấy user chưa bị xoá (hoặc không có trường _destroy)
+            exist_user = UserModel.USER_COLLECTION_NAME.find_one({
+                "email": reqData.get("email"),
+                "$or": [
+                    {"_destroy": False},
+                    {"_destroy": {"$exists": False}}
+                ]
+            })
+            
             # Kiểm tra nếu user không tồn tại
             if not exist_user:
                 raise ApiError(404, "User not found!") 
@@ -191,3 +198,22 @@ class UserRepository:
             return UserModel.find_one_by_id(user_id)
         except Exception as e:
             raise ApiError(500, "An error occurred while finding the user by ID.")  # Handle unexpected errors
+
+    @staticmethod
+    def get_all_users():
+        try:
+            users = UserModel.get_all()  # gọi từ models
+            return [serialize_mongo_data(user) for user in users]
+        except Exception as e:
+            print("❌ Error in get_all_users:", e)
+            raise ApiError(500, "Failed to fetch user list.")
+        
+    @staticmethod
+    def delete_user(user_id):
+        try:
+            return UserModel.delete_user(user_id)
+        except Exception as e:
+            print("🔥 Repo delete_user error:", e)
+            raise e
+
+
