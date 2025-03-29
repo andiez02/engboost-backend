@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+from flask import request, jsonify
+import jwt
+from functools import wraps
+from src.config.environment import ACCESS_TOKEN_SECRET
+from src.exceptions import ApiError
+=======
 from flask import request, g
 import jwt
 from functools import wraps
@@ -7,11 +14,19 @@ from src.utils.api_error import ApiError
 
 # Tạo logger
 logger = logging.getLogger(__name__)
+>>>>>>> d735b66f97253061afaf269aaef92728b9636b13
 
 def is_authorized(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
+<<<<<<< HEAD
+            # Lấy token từ cookie trong request
+            access_token = request.cookies.get("accessToken")
+
+            # Nếu không có token, báo lỗi 401 (Unauthorized)
+            if not access_token:
+=======
             logger.info("=== Authorization Check Started ===")
             
             # Lấy token từ cookie trong request
@@ -29,11 +44,32 @@ def is_authorized(f):
             # Nếu không có token, báo lỗi 401 (Unauthorized)
             if not access_token:
                 logger.warning("No token found in cookies or headers")
+>>>>>>> d735b66f97253061afaf269aaef92728b9636b13
                 raise ApiError(401, "Unauthorized! (Token not found)")
 
             # Giải mã token, kiểm tra tính hợp lệ
             try:
                 decoded_token = jwt.decode(access_token, ACCESS_TOKEN_SECRET, algorithms=["HS256"])
+<<<<<<< HEAD
+                print("Decoded token: ", decoded_token)
+            except jwt.ExpiredSignatureError:
+                raise ApiError(410, "Need to refresh token.")  # Token hết hạn
+            except jwt.InvalidTokenError:
+                raise ApiError(401, "Unauthorized! (Invalid token)")  # Token không hợp lệ
+
+            # Lưu thông tin user vào request để sử dụng sau này
+            request.jwt_decoded = decoded_token
+
+            # Cho phép request tiếp tục đến route được bảo vệ
+            return f(*args, **kwargs)
+
+        except ApiError as e:
+            return jsonify({"error": str(e)}), e.status_code
+
+        except Exception as e:
+            print(f"Unexpected error in auth middleware: {e}")  
+            return jsonify({"error": "Something went wrong!"}), 500
+=======
                 logger.info(f"Token decoded successfully: {decoded_token}")
             except jwt.ExpiredSignatureError:
                 logger.warning("Token expired")
@@ -56,5 +92,6 @@ def is_authorized(f):
         except Exception as e:
             logger.error(f"Unexpected error in auth middleware: {str(e)}")
             raise ApiError(500, "Something went wrong!")
+>>>>>>> d735b66f97253061afaf269aaef92728b9636b13
 
     return decorated_function

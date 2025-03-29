@@ -97,6 +97,92 @@ class UserRepository:
     @staticmethod
     @repo_error_handler
     def login(reqData):
+<<<<<<< HEAD
+        try:
+            # ⚠️ Chỉ lấy user chưa bị xoá (hoặc không có trường _destroy)
+            exist_user = UserModel.USER_COLLECTION_NAME.find_one({
+                "email": reqData.get("email"),
+                "$or": [
+                    {"_destroy": False},
+                    {"_destroy": {"$exists": False}}
+                ]
+            })
+            
+            # Kiểm tra nếu user không tồn tại
+            if not exist_user:
+                raise ApiError(404, "User not found!") 
+            
+            # Kiểm tra nếu tài khoản đã được kích hoạt
+            if not exist_user.get("isActive", False):
+                raise ApiError(406, "Your account is not active")
+
+            # Kiểm tra mật khẩu
+            if not bcrypt.checkpw(reqData["password"].encode("utf-8"), exist_user["password"].encode("utf-8")):
+                raise ApiError(406, "Your Email or Password is incorrect")
+        
+            # Tạo thông tin để đính kèm trong JWT Token
+            user_info = {
+                "_id": str(exist_user["_id"]),
+                "email": exist_user["email"]
+            }
+            
+            # Tạo Access Token và Refresh Token
+            access_token = JwtProvider.generate_token(
+                user_info,
+                ACCESS_TOKEN_SECRET,
+                ACCESS_TOKEN_LIFE
+            )
+            
+            refresh_token = JwtProvider.generate_token(
+                user_info,
+                REFRESH_TOKEN_SECRET,
+                REFRESH_TOKEN_LIFE
+            )
+
+            user = serialize_mongo_data(exist_user)
+            user["accessToken"] = access_token
+            user["refreshToken"] = refresh_token
+            
+            # Trả về thông tin người dùng kèm token
+            return user
+    
+        except ApiError as e:
+            raise e 
+        except Exception as e:
+            print(f"Unexpected error during login: {e}")  # Log the error for debugging
+            raise ApiError(500, "An unexpected error occurred during login.")  # Provide a more specific error me
+
+    @staticmethod
+    def refresh_token(client_refresh_token):
+        try:
+            # Giải mã refreshToken để kiểm tra tính hợp lệ
+            refresh_token_decoded = JwtProvider.verify_token(
+                client_refresh_token, REFRESH_TOKEN_SECRET
+            )
+
+            user_info = {
+                "_id": refresh_token_decoded["_id"],
+                "email": refresh_token_decoded["email"],
+            }
+
+            # Tạo accessToken mới
+            access_token = JwtProvider.generate_token(
+                user_info,
+                ACCESS_TOKEN_SECRET,
+                ACCESS_TOKEN_LIFE  # Thời gian sống của accessToken
+            )
+
+            return {"accessToken": access_token}
+        except Exception as error:
+            raise error
+
+    @staticmethod
+    def find_by_email(email):
+        try:
+            return UserModel.find_by_email(email)
+        except Exception as e:
+            raise ApiError(500, "An error occurred while finding the user by email.") 
+=======
         exist_user = UserModel.find_one_by_email(reqData.get("email"))
 
         # Kiểm tra nếu user không tồn tại
@@ -136,6 +222,7 @@ class UserRepository:
         
         # Trả về thông tin người dùng kèm token
         return user
+>>>>>>> d735b66f97253061afaf269aaef92728b9636b13
 
     @staticmethod
     @repo_error_handler
@@ -167,4 +254,30 @@ class UserRepository:
     @staticmethod
     @repo_error_handler
     def find_one_by_id(user_id):
+<<<<<<< HEAD
+        try:
+            return UserModel.find_one_by_id(user_id)
+        except Exception as e:
+            raise ApiError(500, "An error occurred while finding the user by ID.")  # Handle unexpected errors
+
+    @staticmethod
+    def get_all_users():
+        try:
+            users = UserModel.get_all()  # gọi từ models
+            return [serialize_mongo_data(user) for user in users]
+        except Exception as e:
+            print("❌ Error in get_all_users:", e)
+            raise ApiError(500, "Failed to fetch user list.")
+        
+    @staticmethod
+    def delete_user(user_id):
+        try:
+            return UserModel.delete_user(user_id)
+        except Exception as e:
+            print("🔥 Repo delete_user error:", e)
+            raise e
+
+
+=======
         return UserModel.find_one_by_id(user_id)
+>>>>>>> d735b66f97253061afaf269aaef92728b9636b13

@@ -88,3 +88,45 @@ class UserModel:
             return result
         except Exception as e:
             raise ApiError(500, "An error occurred while updating the user data.") 
+        
+    @staticmethod
+    def find_all():
+        try:
+            users_cursor = UserModel.USER_COLLECTION_NAME.find(
+            {
+                "$or": [
+                    {"_destroy": False},
+                    {"_destroy": { "$exists": False }}
+                ]
+            },
+            {"password": 0}
+            )
+            users = []
+            for user in users_cursor:
+                user["_id"] = str(user["_id"])
+                users.append(user)
+            return users
+        except Exception as e:
+            raise ApiError(500, "Lỗi khi lấy danh sách người dùng.")
+
+    @staticmethod
+    def delete_user(user_id):
+        try:
+            if not ObjectId.is_valid(user_id):
+                raise ApiError(400, "ID người dùng không hợp lệ")
+
+            result = UserModel.USER_COLLECTION_NAME.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"_destroy": True, "updatedAt": datetime.utcnow()}}
+            )
+
+            if result.modified_count == 0:
+                raise ApiError(404, "Không tìm thấy người dùng hoặc không thể xoá")
+        
+            return True
+        except Exception as e:
+            raise ApiError(500, "Đã có lỗi khi xoá người dùng")
+ 
+
+        
+        
