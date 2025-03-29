@@ -95,7 +95,7 @@ class FolderRepository:
 
     @staticmethod
     @repo_error_handler
-    def delete_folder(folder_id, user_id):
+    async def delete_folder(folder_id, user_id):
         """Delete folder"""
         # Kiểm tra folder tồn tại
         folder = FolderModel.find_by_id(folder_id)
@@ -109,13 +109,12 @@ class FolderRepository:
             
         # Xóa tất cả flashcard thuộc folder trước
         try:
-            FlashcardModel.delete_by_folder(folder_id)
+            await FlashcardModel.delete_by_folder(folder_id)
         except Exception as e:
             logging.error(f"Error deleting flashcards for folder {folder_id}: {str(e)}")
             raise ApiError(500, "Error deleting flashcards")
 
         # Xóa folder
         deleted_folder = FolderModel.delete(folder_id)
-        
         
         return serialize_mongo_data(deleted_folder)

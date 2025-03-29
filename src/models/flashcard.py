@@ -87,31 +87,37 @@ class FlashcardModel:
         if not ObjectId.is_valid(folder_id):
             raise ApiError(400, "Invalid folder ID format")
             
-        # Get all flashcards in the folder
-        flashcards = cls.find_by_folder(folder_id)
-        
-        # Create a thread pool for handling Cloudinary operations
-        with ThreadPoolExecutor() as executor:
-            # Delete images from Cloudinary concurrently
-            from src.config.cloudinary import CloudinaryService
-            delete_tasks = []
-            for flashcard in flashcards:
-                if flashcard.get("image_public_id"):
-                    delete_tasks.append(
-                        asyncio.get_event_loop().run_in_executor(
-                            executor,
-                            CloudinaryService.delete_image,
-                            flashcard["image_public_id"]
-                        )
-                    )
-            
-            # Wait for all image deletions to complete
-            if delete_tasks:
-                await asyncio.gather(*delete_tasks)
-        
-        # Delete all flashcards
+        # First, delete all flashcards in a single operation
         result = cls.FLASHCARD_COLLECTION_NAME.delete_many({"folder_id": folder_id})
-        return result.deleted_count
+        deleted_count = result.deleted_count
+        
+        if deleted_count > 0:
+            # Get deleted flashcards for image cleanup
+            deleted_flashcards = list(cls.FLASHCARD_COLLECTION_NAME.find({
+                "folder_id": folder_id,
+                "image_url": {"$exists": True}
+            }))
+            
+            # Create a thread pool for handling Cloudinary operations
+            with ThreadPoolExecutor() as executor:
+                # Delete images from Cloudinary concurrently
+                from src.config.cloudinary import CloudinaryService
+                delete_tasks = []
+                for flashcard in deleted_flashcards:
+                    if flashcard.get("image_url"):
+                        delete_tasks.append(
+                            asyncio.get_event_loop().run_in_executor(
+                                executor,
+                                CloudinaryService.delete_image,
+                                flashcard["image_url"]
+                            )
+                        )
+                
+                # Wait for all image deletions to complete
+                if delete_tasks:
+                    await asyncio.gather(*delete_tasks)
+        
+        return deleted_count
 
     @classmethod
     @model_error_handler
@@ -122,3 +128,4 @@ class FlashcardModel:
                 
         result = cls.FLASHCARD_COLLECTION_NAME.insert_many(flashcards)
         return {"inserted_count": len(result.inserted_ids)}
+

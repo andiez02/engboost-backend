@@ -35,6 +35,8 @@ class FolderModel:
     
     # Tạo index cho user_id để tối ưu tìm kiếm
     FOLDER_COLLECTION_NAME.create_index("user_id")
+    # Tạo index cho title và user_id để đảm bảo tên folder không trùng lặp cho mỗi user
+    FOLDER_COLLECTION_NAME.create_index([("title", 1), ("user_id", 1)], unique=True)
 
     @classmethod
     @model_error_handler
@@ -48,15 +50,30 @@ class FolderModel:
             validated_folder = FolderSchemaDB(**folder_data)
             logger.info(f"Validated folder data: {validated_folder.model_dump()}")
             
+            # Kiểm tra xem folder với title này đã tồn tại chưa
+            existing_folder = cls.FOLDER_COLLECTION_NAME.find_one({
+                "title": validated_folder.title,
+                "user_id": validated_folder.user_id
+            })
+            
+            if existing_folder:
+                logger.error(f"Folder with title '{validated_folder.title}' already exists for user {validated_folder.user_id}")
+                raise ApiError(400, f"Folder with title '{validated_folder.title}' already exists")
+            
             result = cls.FOLDER_COLLECTION_NAME.insert_one(validated_folder.model_dump())
             logger.info(f"Insert result: {result.inserted_id}")
             
             return str(result.inserted_id)
+        except ApiError as e:
+            # Re-raise ApiError để giữ nguyên status code và message
+            raise
         except Exception as e:
+            # Kiểm tra lỗi trùng lặp từ MongoDB (duplicate key error)
+            if "duplicate key error" in str(e) and "title" in str(e):
+                logger.error(f"Duplicate folder title error: {str(e)}")
+                raise ApiError(400, f"Folder with this title already exists")
             logger.error(f"Error creating folder: {str(e)}")
             raise
-
-
 
     @classmethod
     @model_error_handler
@@ -82,8 +99,6 @@ class FolderModel:
             logger.info(f"First folder sample: {result[0]}")
         
         return result
-
-
 
     @classmethod
     @model_error_handler
@@ -111,11 +126,14 @@ class FolderModel:
             
         return folder
 
-
     @classmethod
     @model_error_handler
     def update(cls, folder_id, update_data):
         """Update folder data"""
+        logger = logging.getLogger(__name__)
+        logger.info(f"=== Model: Updating folder {folder_id} ===")
+        logger.info(f"Update data: {update_data}")
+        
         if not ObjectId.is_valid(folder_id):
             raise ApiError(400, "Invalid folder ID")
         
@@ -125,16 +143,48 @@ class FolderModel:
 
         # Update updatedAt field
         update_data["updated_at"] = datetime.utcnow()
-
-        result = cls.FOLDER_COLLECTION_NAME.find_one_and_update(
-            {"_id": ObjectId(folder_id)},
-            {"$set": update_data},
-            return_document=True
-        )
         
-        if result:
-            result["_id"] = str(result["_id"])
-        return result
+        # Nếu có cập nhật title, kiểm tra xem title mới có trùng với folder khác không
+        if "title" in update_data:
+            # Lấy thông tin folder hiện tại
+            current_folder = cls.FOLDER_COLLECTION_NAME.find_one({"_id": ObjectId(folder_id)})
+            if not current_folder:
+                raise ApiError(404, "Folder not found")
+            
+            # Kiểm tra xem title mới có khác với title cũ không
+            if update_data["title"] != current_folder["title"]:
+                # Kiểm tra xem title mới có trùng với folder khác của cùng user không
+                existing_folder = cls.FOLDER_COLLECTION_NAME.find_one({
+                    "title": update_data["title"],
+                    "user_id": current_folder["user_id"],
+                    "_id": {"$ne": ObjectId(folder_id)}  # Loại trừ folder hiện tại
+                })
+                
+                if existing_folder:
+                    logger.error(f"Folder with title '{update_data['title']}' already exists for user {current_folder['user_id']}")
+                    raise ApiError(400, f"Folder with title '{update_data['title']}' already exists")
+
+        try:
+            result = cls.FOLDER_COLLECTION_NAME.find_one_and_update(
+                {"_id": ObjectId(folder_id)},
+                {"$set": update_data},
+                return_document=ReturnDocument.AFTER
+            )
+            
+            if result:
+                result["_id"] = str(result["_id"])
+                logger.info(f"Updated folder: {result}")
+            else:
+                logger.warning(f"No folder found with ID: {folder_id}")
+                
+            return result
+        except Exception as e:
+            # Kiểm tra lỗi trùng lặp từ MongoDB (duplicate key error)
+            if "duplicate key error" in str(e) and "title" in str(e):
+                logger.error(f"Duplicate folder title error: {str(e)}")
+                raise ApiError(400, f"Folder with this title already exists")
+            logger.error(f"Error updating folder: {str(e)}")
+            raise
     
     @classmethod
     @model_error_handler
@@ -168,7 +218,7 @@ class FolderModel:
                 "$inc": {"flashcard_count": increment},
                 "$set": {"updated_at": datetime.utcnow()}
             },
-            return_document=True
+            return_document=ReturnDocument.AFTER
         )
         
         if result:
