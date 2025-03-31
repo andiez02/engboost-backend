@@ -9,6 +9,7 @@ from src.utils.error_handlers import repo_error_handler
 from src.utils.email_helper import send_email_async
 import bcrypt
 import uuid
+from src.config.cloudinary import CloudinaryService
 
 class UserRepository:
     @staticmethod
@@ -168,3 +169,38 @@ class UserRepository:
     @repo_error_handler
     def find_one_by_id(user_id):
         return UserModel.find_one_by_id(user_id)
+
+    @staticmethod
+    @repo_error_handler
+    def update(user_id, update_data, user_avatar_file=None):
+        exist_user = UserModel.find_one_by_id(user_id)
+        if not exist_user:
+            raise ApiError(404, "Account not found!")
+        
+        if not exist_user.get("isActive", False):
+            raise ApiError(406, "Your account is not active")
+        
+        updated_user = {}
+
+        # Change Password
+        if (update_data.get("current_password") and update_data.get("new_password")):
+            if not bcrypt.checkpw(update_data["current_password"].encode("utf-8"), exist_user["password"].encode("utf-8")):
+                raise ApiError(406, "Your current password is incorrect")
+            
+            update_user = UserModel.update(user_id, {
+                "password": bcrypt.hashpw(update_data["new_password"].encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            })
+
+        # Handle avatar update
+        elif user_avatar_file:
+            # Upload avatar to cloud storage and get URL
+            avatar_result = CloudinaryService.upload_image(user_avatar_file, folder="avatars")
+            update_data["avatar"] = avatar_result["url"]
+            update_data["avatar_public_id"] = avatar_result["public_id"]
+            updated_user = UserModel.update(user_id, update_data)
+
+        # Update other information
+        else: 
+            updated_user = UserModel.update(user_id, update_data)
+            
+        return pick_user(updated_user)

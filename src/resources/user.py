@@ -1,27 +1,15 @@
 from flask import request, jsonify, make_response
-from pydantic import BaseModel, EmailStr, constr, ValidationError, Field
 from src.repositories.user import UserRepository
 from src.utils.api_error import ApiError
-from src.utils.constants import (
-    EMAIL_RULE,
-    EMAIL_RULE_MESSAGE,
-    PASSWORD_RULE,
-    PASSWORD_RULE_MESSAGE,
-)
 from src.utils.error_handlers import api_error_handler
-
-class RegisterValidation(BaseModel):
-    email: EmailStr = Field(..., pattern=EMAIL_RULE.pattern, description=EMAIL_RULE_MESSAGE)  
-    password: str = Field(..., min_length=8, description=PASSWORD_RULE_MESSAGE)
-
-class VerifyAccountValidation(BaseModel):
-    email: EmailStr = Field(..., pattern=EMAIL_RULE.pattern, description=EMAIL_RULE_MESSAGE)  
-    token: str = Field(...,)
-
-class LoginValidation(BaseModel):
-    email: EmailStr = Field(..., pattern=EMAIL_RULE.pattern, description=EMAIL_RULE_MESSAGE)  
-    password: str = Field(..., min_length=8, description=PASSWORD_RULE_MESSAGE)
-
+from flask import g
+from src.validation.user import (
+    RegisterValidation,
+    VerifyAccountValidation,
+    LoginValidation,
+    UpdateUserValidation
+)
+from src.middleware.image_upload import image_upload_middleware
 
 class UserResource:
     @staticmethod
@@ -58,7 +46,6 @@ class UserResource:
         result = UserRepository.login(request_data)
 
         # return http only cookie for browser
-        print(result)
 
         response = make_response(jsonify({
             "message": "Account login successfully",
@@ -71,7 +58,7 @@ class UserResource:
             httponly=True,
             secure=True,
             samesite="None",
-            max_age=60 * 60 * 24 * 14  # 14 ngày
+            max_age=60 * 60 * 24 * 14 
         )
 
         response.set_cookie(
@@ -116,11 +103,24 @@ class UserResource:
 
     @staticmethod
     @api_error_handler
-    def get_user_by_id(user_id):
-        user = UserRepository.find_one_by_id(user_id)
-        if not user:
-            raise ApiError(404, "User not found") 
-
-        # Convert ObjectId to string for JSON response
-        user["_id"] = str(user["_id"])
-        return jsonify(user), 200
+    async def update(user_avatar_file=None, **kwargs):
+        # Get user_id from authenticated user
+        user_id = g.user["_id"]
+        
+        # Handle form data for avatar upload
+        if user_avatar_file:
+            # Update user with avatar file
+            result = UserRepository.update(user_id, {}, user_avatar_file)
+            return jsonify({"message": "User avatar updated successfully", "user": result}), 200
+        
+        # Handle JSON data for other updates
+        if not request.is_json:
+            raise ApiError(415, "Content-Type must be application/json for non-file updates")
+            
+        # Validate update data
+        verified_data = UpdateUserValidation(**request.json)
+        update_data = verified_data.model_dump(exclude_none=True)
+        
+        # Update user
+        result = UserRepository.update(user_id, update_data)
+        return jsonify({"message": "User updated successfully", "user": result}), 200

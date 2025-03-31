@@ -2,6 +2,7 @@ from flask import request, jsonify, g
 from src.repositories.flashcard import FlashcardRepository
 from src.utils.api_error import ApiError
 from src.utils.error_handlers import api_error_handler
+from src.validation.flashcard import SaveFlashcardsValidation
 import logging
 
 class FlashcardResource:
@@ -39,37 +40,19 @@ class FlashcardResource:
         if not request.is_json:
             raise ApiError(400, "Request must have JSON content type")
             
-        data = request.get_json()
-        if not data:
-            raise ApiError(400, "Request body cannot be empty")
+        # Validate request data
+        validated_data = SaveFlashcardsValidation(**request.json)
+        request_data = validated_data.model_dump()
         
         # Log request data for debugging
-        logging.info(f"Save to folder request data: {data}")
-            
-        # Extract and validate parameters
-        create_new_folder = data.get("create_new_folder", False)
-        folder_id = data.get("folder_id")
-        folder_title = data.get("folder_title")
-        flashcards_data = data.get("flashcards", [])
-        
-        # Validate flashcards
-        if not flashcards_data or not isinstance(flashcards_data, list):
-            raise ApiError(400, "Flashcards must be a non-empty list")
-        
-        # Validate folder information
-        if create_new_folder:
-            if not folder_title or not folder_title.strip():
-                raise ApiError(400, "Folder title is required when creating a new folder")
-        else:
-            if not folder_id:
-                raise ApiError(400, "Folder ID is required when using existing folder")
+        logging.info(f"Save to folder request data: {request_data}")
         
         # Call repository method
         result = FlashcardRepository.save_flashcards_to_folder(
-            create_new_folder=create_new_folder,
-            folder_id=folder_id,
-            folder_title=folder_title,
-            flashcards_data=flashcards_data,
+            create_new_folder=request_data["create_new_folder"],
+            folder_id=request_data["folder_id"],
+            folder_title=request_data["folder_title"],
+            flashcards_data=request_data["flashcards"],
             user_id=user_id
         )
         

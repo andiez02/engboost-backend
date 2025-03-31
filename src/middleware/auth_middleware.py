@@ -1,9 +1,11 @@
-from flask import request, g
+from flask import request, g, jsonify
 import jwt
 from functools import wraps
 import logging
-from src.config.environment import ACCESS_TOKEN_SECRET
+from src.config.environment import ACCESS_TOKEN_SECRET, REFRESH_TOKEN_SECRET
 from src.utils.api_error import ApiError
+from src.config.jwt_provider import JwtProvider
+from src.repositories.user import UserRepository
 
 # Tạo logger
 logger = logging.getLogger(__name__)
@@ -16,6 +18,7 @@ def is_authorized(f):
             
             # Lấy token từ cookie trong request
             access_token = request.cookies.get("accessToken")
+            refresh_token = request.cookies.get("refreshToken")
             logger.info(f"Token from cookie: {'Found' if access_token else 'Not found'}")
             
             # Kiểm tra token trong header nếu không có trong cookie
@@ -36,11 +39,11 @@ def is_authorized(f):
                 decoded_token = jwt.decode(access_token, ACCESS_TOKEN_SECRET, algorithms=["HS256"])
                 logger.info(f"Token decoded successfully: {decoded_token}")
             except jwt.ExpiredSignatureError:
-                logger.warning("Token expired")
-                raise ApiError(410, "Need to refresh token.")  # Token hết hạn
+                logger.warning("Access token expired")
+                raise ApiError(410, "Access token expired. Please refresh token.")  # Trả về 410 để client biết cần refresh
             except jwt.InvalidTokenError as e:
                 logger.warning(f"Invalid token: {str(e)}")
-                raise ApiError(401, "Unauthorized! (Invalid token)")  # Token không hợp lệ
+                raise ApiError(401, "Unauthorized! (Invalid token)")
 
             # Lưu thông tin user vào g để sử dụng trong request hiện tại
             g.user = decoded_token

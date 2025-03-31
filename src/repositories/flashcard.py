@@ -43,8 +43,8 @@ class FlashcardRepository:
         if folder["user_id"] != user_id:
             raise ApiError(403, "You don't have permission to delete this flashcard")
         
-        if flashcard.get("image_public_id"):
-            CloudinaryService.delete_image(flashcard["image_public_id"])
+        if flashcard.get("image_url"):
+            CloudinaryService.delete_image(flashcard["image_url"])
         
         deleted_flashcard = FlashcardModel.delete(flashcard_id)
         
@@ -56,6 +56,15 @@ class FlashcardRepository:
         """Save flashcards to a folder (new or existing)"""
         from datetime import datetime
         import logging
+        logger = logging.getLogger(__name__)
+        
+        # Debug request data
+        logger.info("====== FLASHCARD IMPORT REQUEST ======")
+        logger.info(f"Create new folder: {create_new_folder}")
+        logger.info(f"Folder ID: {folder_id}")
+        logger.info(f"Folder title: {folder_title}")
+        logger.info(f"Flashcards count: {len(flashcards_data)}")
+        logger.info(f"Sample flashcard: {flashcards_data[0] if flashcards_data else 'None'}")
         
         # Step 1: Handle folder creation or validation
         if create_new_folder:
@@ -66,10 +75,10 @@ class FlashcardRepository:
                 "user_id": user_id
             }
             
-            logging.info(f"Creating new folder with title: {folder_title}")
+            logger.info(f"Creating new folder with title: {folder_title}")
             folder_result = FolderRepository.create_new(folder_data)
             folder_id = folder_result["_id"]
-            logging.info(f"Created new folder with ID: {folder_id}")
+            logger.info(f"Created new folder with ID: {folder_id}")
         else:
             # Validate existing folder
             folder = FolderModel.find_by_id(folder_id)
@@ -89,8 +98,12 @@ class FlashcardRepository:
             batch = flashcards_data[i:i + batch_size]
             for idx, card in enumerate(batch):
                 try:
+                    # Debug the card data
+                    logger.info(f"Processing card {i+idx}: {card}")
+                    
                     # Validate required fields
                     if not card.get("english") or not card.get("vietnamese"):
+                        logger.warning(f"Missing required fields for card {i+idx}")
                         invalid_flashcards.append({
                             "index": i + idx,
                             "card": card,
@@ -100,19 +113,35 @@ class FlashcardRepository:
                     
                     # Handle image upload if present
                     image_url = None
-                    if card.get("imageUrl") and card["imageUrl"].startswith("data:"):
+                    # Check multiple possible image field names
+                    if card.get("image_url"):
+                        image_source = card["image_url"]
+                        logger.info(f"Found image_url: {image_source[:30]}...")
+                    elif card.get("imageUrl"):
+                        image_source = card["imageUrl"]
+                        logger.info(f"Found imageUrl: {image_source[:30]}...")
+                    else:
+                        image_source = None
+                        logger.info("No image field found in card")
+                    
+                    # Process image if exists
+                    if image_source and isinstance(image_source, str) and image_source.startswith("data:"):
                         try:
-                            upload_result = CloudinaryService.upload_image(card["imageUrl"])
+                            logger.info("Uploading image to Cloudinary...")
+                            upload_result = CloudinaryService.upload_image(image_source)
                             image_url = upload_result["url"]
+                            logger.info(f"Successfully uploaded image: {image_url}")
                         except Exception as e:
+                            logger.error(f"Error uploading image: {str(e)}")
                             invalid_flashcards.append({
                                 "index": i + idx,
                                 "card": card,
                                 "error": f"Error uploading image: {str(e)}"
                             })
                             continue
-                    elif card.get("image_url"):
-                        image_url = card["image_url"]
+                    elif image_source and isinstance(image_source, str) and (image_source.startswith("http://") or image_source.startswith("https://")):
+                        image_url = image_source
+                        logger.info(f"Using existing image URL: {image_url}")
                     
                     # Create flashcard data
                     flashcard_data = {
@@ -125,9 +154,11 @@ class FlashcardRepository:
                         "created_at": datetime.utcnow()
                     }
                     
+                    logger.info(f"Created flashcard data: {flashcard_data}")
                     valid_flashcards.append(flashcard_data)
                     
                 except Exception as e:
+                    logger.error(f"Error processing flashcard: {str(e)}")
                     invalid_flashcards.append({
                         "index": i + idx,
                         "card": card,
@@ -139,14 +170,15 @@ class FlashcardRepository:
         if valid_flashcards:
             try:
                 # Use bulk insert for better performance
+                logger.info(f"Inserting {len(valid_flashcards)} flashcards into database...")
                 result = FlashcardModel.bulk_insert(valid_flashcards)
                 imported_count = len(valid_flashcards)
-                logging.info(f"Successfully inserted {imported_count} flashcards into folder {folder_id}")
+                logger.info(f"Successfully inserted {imported_count} flashcards into folder {folder_id}")
                 
                 # Update folder flashcard count
                 FolderModel.increment_flashcard_count(folder_id, increment=imported_count)
             except Exception as e:
-                logging.error(f"Error during bulk import: {str(e)}")
+                logger.error(f"Error during bulk import: {str(e)}")
                 raise ApiError(500, "Error during bulk import")
         
         # Step 4: Return result

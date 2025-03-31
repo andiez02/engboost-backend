@@ -1,32 +1,10 @@
 from flask import request, jsonify, g
-from pydantic import BaseModel, Field, validator
 from src.repositories.folder import FolderRepository
 from src.utils.api_error import ApiError
 from src.utils.error_handlers import api_error_handler
+from src.validation.folder import CreateFolderValidation, UpdateFolderValidation
 import logging
 import asyncio
-
-class CreateFolderValidation(BaseModel):
-    title: str = Field(..., min_length=1, max_length=100)
-    description: str = Field(default="")
-    is_public: bool = Field(default=False)
-
-    @validator('title')
-    def title_not_empty(cls, v):
-        if not v.strip():
-            raise ValueError('Title cannot be empty')
-        return v
-
-class UpdateFolderValidation(BaseModel):
-    title: str | None = Field(None, min_length=1, max_length=100)
-    description: str | None = None
-    is_public: bool | None = None
-
-    @validator('title')
-    def title_not_empty(cls, v):
-        if v is not None and not v.strip():
-            raise ValueError('Title cannot be empty')
-        return v
 
 class FolderResource:
     @staticmethod
@@ -72,8 +50,6 @@ class FolderResource:
         logger.info(f"Returning response: {response_data}")
         return jsonify(response_data), 200
 
-
-
     @staticmethod
     @api_error_handler
     def get_folder(folder_id):
@@ -109,15 +85,13 @@ class FolderResource:
     @api_error_handler
     def delete_folder(folder_id):
         """Delete folder"""
+        # Get user ID from authenticated user
         user_id = g.user["_id"]
-        # Create event loop for async operation
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            deleted_folder = loop.run_until_complete(FolderRepository.delete_folder(folder_id, user_id))
-            return jsonify({
-                "message": "Folder deleted successfully",
-                "folder": deleted_folder
-            }), 200
-        finally:
-            loop.close()
+        
+        # Delete folder
+        result = FolderRepository.delete_folder(folder_id, user_id)
+        
+        return jsonify({
+            "message": "Folder deleted successfully",
+            "folder": result
+        }), 200

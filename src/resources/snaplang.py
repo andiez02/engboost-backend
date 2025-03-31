@@ -44,10 +44,15 @@ def detect_objects():
 
     logger.info(f"Objects detected: {detections}")
 
+    # Chuyển list thành set để loại bỏ trùng lặp
+    unique_objects = set(detections)
+    # Chuyển lại thành list nếu cần
+    unique_objects = list(unique_objects)
+
     # Dịch tất cả các object sang tiếng Việt
     translated_objects = [
         {"object": obj, "english": obj.capitalize(), "vietnamese": translate_word(obj)}
-        for obj in detections
+        for obj in unique_objects
     ]
 
     return jsonify({"detections": translated_objects})

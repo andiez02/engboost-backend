@@ -4,6 +4,7 @@ from src.utils.api_error import ApiError
 from src.utils.error_handlers import repo_error_handler
 from src.utils.mongo_helper import serialize_mongo_data
 import logging
+import asyncio
 
 class FolderRepository:
     @staticmethod
@@ -95,7 +96,7 @@ class FolderRepository:
 
     @staticmethod
     @repo_error_handler
-    async def delete_folder(folder_id, user_id):
+    def delete_folder(folder_id, user_id):
         """Delete folder"""
         # Kiểm tra folder tồn tại
         folder = FolderModel.find_by_id(folder_id)
@@ -109,7 +110,11 @@ class FolderRepository:
             
         # Xóa tất cả flashcard thuộc folder trước
         try:
-            await FlashcardModel.delete_by_folder(folder_id)
+            # Create event loop for async operation
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(FlashcardModel.delete_by_folder(folder_id))
+            loop.close()
         except Exception as e:
             logging.error(f"Error deleting flashcards for folder {folder_id}: {str(e)}")
             raise ApiError(500, "Error deleting flashcards")
