@@ -95,3 +95,36 @@ class FolderResource:
             "message": "Folder deleted successfully",
             "folder": result
         }), 200
+
+    @staticmethod
+    @api_error_handler
+    def get_public_folders():
+        """Get all public folders"""
+        logger = logging.getLogger(__name__)
+        logger.info("=== Getting Public Folders ===")
+        
+        # Get query parameters
+        skip = int(request.args.get("skip", 0))
+        limit = int(request.args.get("limit", 100))
+        
+        # Get folders
+        result = FolderRepository.get_public_folders(skip, limit)
+        
+        return jsonify({
+            "folders": result
+        }), 200
+
+    @staticmethod
+    @api_error_handler
+    def make_folder_public(folder_id):
+        """Toggle folder public state (admin only)"""
+        # Get user ID from authenticated user
+        user_id = g.user["_id"]
+        
+        # Update folder to toggle public state
+        result = FolderRepository.toggle_folder_public(folder_id, user_id)
+        
+        return jsonify({
+            "message": "Folder public state toggled successfully",
+            "folder": result
+        }), 200

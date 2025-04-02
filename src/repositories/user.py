@@ -148,7 +148,7 @@ class UserRepository:
 
         user_info = {
             "_id": refresh_token_decoded["_id"],
-            "email": refresh_token_decoded["email"],
+            "email": refresh_token_decoded["email"]
         }
 
         # Tạo accessToken mới

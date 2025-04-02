@@ -4,6 +4,7 @@ from src.utils.api_error import ApiError
 from src.utils.error_handlers import api_error_handler
 from src.validation.flashcard import SaveFlashcardsValidation
 import logging
+import json
 
 class FlashcardResource:
     @staticmethod
@@ -57,3 +58,51 @@ class FlashcardResource:
         )
         
         return jsonify(result)
+
+    @staticmethod
+    @api_error_handler
+    def import_flashcards():
+        """Import flashcards from JSON file"""
+        logger = logging.getLogger(__name__)
+        logger.info("=== Importing Flashcards ===")
+        
+        # Validate request data
+        if "file" not in request.files:
+            raise ApiError(400, "No file uploaded")
+        
+        file = request.files["file"]
+        if file.filename == "":
+            raise ApiError(400, "No file selected")
+        
+        if not file.filename.endswith(".json"):
+            raise ApiError(400, "Only JSON files are allowed")
+        
+        # Read and parse JSON file
+        try:
+            flashcards_data = json.load(file)
+            logger.info(f"Successfully parsed JSON file with {len(flashcards_data)} flashcards")
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing JSON file: {str(e)}")
+            raise ApiError(400, "Invalid JSON file")
+        
+        # Get folder info from request
+        create_new_folder = request.form.get("create_new_folder", "false").lower() == "true"
+        folder_id = request.form.get("folder_id")
+        folder_title = request.form.get("folder_title", "Imported Flashcards")
+        
+        # Get user ID from authenticated user
+        user_id = g.user["_id"]
+        
+        # Save flashcards to folder
+        result = FlashcardRepository.save_flashcards_to_folder(
+            create_new_folder,
+            folder_id,
+            folder_title,
+            flashcards_data,
+            user_id
+        )
+        
+        return jsonify({
+            "message": "Flashcards imported successfully",
+            "result": result
+        }), 201

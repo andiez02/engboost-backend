@@ -16,6 +16,7 @@ class FlashcardSchemaDB(BaseModel):
     image_url: str | None = None  # Store Cloudinary URL directly
     folder_id: str
     user_id: str
+    is_public: bool = Field(default=False)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime | None = None
@@ -128,4 +129,40 @@ class FlashcardModel:
                 
         result = cls.FLASHCARD_COLLECTION_NAME.insert_many(flashcards)
         return {"inserted_count": len(result.inserted_ids)}
+
+    @classmethod
+    @model_error_handler
+    async def make_all_public_by_folder(cls, folder_id, is_public):
+        """Update all flashcards in a folder public state"""
+        if not ObjectId.is_valid(folder_id):
+            raise ApiError(400, "Invalid folder ID format")
+            
+        # Update all flashcards in the folder to public state
+        result = cls.FLASHCARD_COLLECTION_NAME.update_many(
+            {"folder_id": folder_id},
+            {
+                "$set": {
+                    "is_public": is_public,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        return result.modified_count
+
+    @classmethod
+    @model_error_handler
+    def count_by_folder(cls, folder_id):
+        """Count flashcards in a folder"""
+        logger = logging.getLogger(__name__)
+        logger.info(f"=== Model: Counting flashcards in folder {folder_id} ===")
+        
+        if not ObjectId.is_valid(folder_id):
+            raise ApiError(400, "Invalid folder ID format")
+        
+        query = {"folder_id": folder_id}
+        count = cls.FLASHCARD_COLLECTION_NAME.count_documents(query)
+        logger.info(f"Found {count} flashcards in folder {folder_id}")
+        
+        return count
 

@@ -225,3 +225,39 @@ class FolderModel:
             logging.info(f"Updated flashcard count for folder {folder_id}: {result['flashcard_count']}")
         else:
             logging.error(f"Failed to update flashcard count for folder {folder_id}")
+
+    @classmethod
+    @model_error_handler
+    def find_public_folders(cls, skip=0, limit=100):
+        """Find all public folders"""
+        logger = logging.getLogger(__name__)
+        logger.info("=== Model: Finding public folders ===")
+        
+        query = {
+            "is_public": True,
+        }
+        
+        cursor = cls.FOLDER_COLLECTION_NAME.find(query).sort("created_at", -1).skip(skip).limit(limit)
+        return list(cursor)
+
+    @classmethod
+    @model_error_handler
+    def update_flashcard_count(cls, folder_id, count):
+        """Update folder's flashcard count to an exact value"""
+        logger = logging.getLogger(__name__)
+        logger.info(f"=== Model: Updating folder {folder_id} flashcard_count to {count} ===")
+        
+        if not ObjectId.is_valid(folder_id):
+            raise ApiError(400, "Invalid folder ID format")
+        
+        result = cls.FOLDER_COLLECTION_NAME.update_one(
+            {"_id": ObjectId(folder_id)},
+            {"$set": {"flashcard_count": count}}
+        )
+        
+        if result.modified_count > 0:
+            logger.info(f"Updated folder {folder_id} flashcard_count to {count}")
+        else:
+            logger.error(f"Failed to update flashcard count for folder {folder_id}")
+        
+        return result.modified_count
