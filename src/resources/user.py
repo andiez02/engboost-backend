@@ -1,15 +1,20 @@
 from flask import request, jsonify, make_response
+from flask_cors.core import serialize_option
+
 from src.repositories.user import UserRepository
 from src.utils.api_error import ApiError
 from src.utils.error_handlers import api_error_handler
 from flask import g
+
+from src.utils.formatters import pick_user
+from src.utils.mongo_helper import serialize_mongo_data
 from src.validation.user import (
     RegisterValidation,
     VerifyAccountValidation,
     LoginValidation,
-    UpdateUserValidation
+    UpdateUserValidation,
+    UpdateUserRoleValidation,
 )
-from src.middleware.image_upload import image_upload_middleware
 
 class UserResource:
     @staticmethod
@@ -124,3 +129,66 @@ class UserResource:
         # Update user
         result = UserRepository.update(user_id, update_data)
         return jsonify({"message": "User updated successfully", "user": result}), 200
+
+    @staticmethod
+    @api_error_handler
+    def get_list_user():
+        # Lấy tham số từ query string
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 10, type=int)
+        search = request.args.get('search', '')
+
+        # Tính toán offset
+        offset = (page - 1) * limit
+
+        # Gọi repository để lấy danh sách người dùng
+        users, total_users = UserRepository.search_users(search, limit, offset)
+
+        # Chuẩn bị response
+        serialized_users = [serialize_mongo_data(user) for user in users]
+        users_response = [pick_user(user) for user in serialized_users]
+
+        return jsonify({
+            "users": users_response,
+            "pagination": {
+                "total": total_users,
+                "page": page,
+                "limit": limit,
+                "totalPages": (total_users + limit - 1) // limit
+            }
+        }), 200
+
+    @staticmethod
+    @api_error_handler
+    def update_user_role(user_id):
+        # Validate request body using Pydantic
+        verified_data = UpdateUserRoleValidation(user_id=user_id, **request.json)
+
+        # Extract data from the validated request
+        request_data = verified_data.model_dump()
+        new_role = request_data["role"]
+
+        # Call the repository method to update the user's role
+        result = UserRepository.update_user_role(user_id, new_role)
+
+        return jsonify({"message": "User role updated successfully", "user": result}), 200
+
+    @staticmethod
+    @api_error_handler
+    def delete_user(user_id):
+        """
+        Xóa người dùng và tất cả dữ liệu liên quan.
+
+        Args:
+            user_id: ID của người dùng cần xóa từ URL
+
+        Returns:
+            JSON response với thông báo xóa thành công
+        """
+        # Gọi repository để xóa người dùng và dữ liệu liên quan
+        UserRepository.delete_user(user_id)
+
+        return jsonify({
+            "message": "User and all related data deleted successfully",
+            "deleted": True
+        }), 200

@@ -10,6 +10,7 @@ from src.utils.email_helper import send_email_async
 import bcrypt
 import uuid
 from src.config.cloudinary import CloudinaryService
+from src.config.mongodb import MongoDB
 
 class UserRepository:
     @staticmethod
@@ -160,10 +161,10 @@ class UserRepository:
 
         return {"accessToken": access_token}
 
-    @staticmethod
-    @repo_error_handler
-    def find_by_email(email):
-        return UserModel.find_by_email(email)
+    # @staticmethod
+    # @repo_error_handler
+    # def find_by_email(email):
+    #     return UserModel.find_by_email(email)
 
     @staticmethod
     @repo_error_handler
@@ -176,14 +177,14 @@ class UserRepository:
         exist_user = UserModel.find_one_by_id(user_id)
         if not exist_user:
             raise ApiError(404, "Account not found!")
-        
+
         if not exist_user.get("isActive", False):
             raise ApiError(406, "Your account is not active")
         
         updated_user = {}
 
         # Change Password
-        if (update_data.get("current_password") and update_data.get("new_password")):
+        if update_data.get("current_password") and update_data.get("new_password"):
             if not bcrypt.checkpw(update_data["current_password"].encode("utf-8"), exist_user["password"].encode("utf-8")):
                 raise ApiError(406, "Your current password is incorrect")
             
@@ -204,3 +205,198 @@ class UserRepository:
             updated_user = UserModel.update(user_id, update_data)
             
         return pick_user(updated_user)
+
+    @staticmethod
+    @repo_error_handler
+    def get_all_users():
+        try:
+            # Fetch all users from the database
+            users_cursor = UserModel.USER_COLLECTION_NAME.find({})
+            users = list(users_cursor)
+            return users
+        except Exception as e:
+            raise ApiError(500, "An error occurred while fetching users.")
+
+    @staticmethod
+    @repo_error_handler
+    def get_users_paginated(limit, offset):
+        try:
+            # Lấy danh sách người dùng với phân trang
+            users_cursor = UserModel.USER_COLLECTION_NAME.find({}).skip(offset).limit(limit)
+            users = list(users_cursor)
+            return users
+        except Exception as e:
+            raise ApiError(500, "An error occurred while fetching users.")
+
+    @staticmethod
+    @repo_error_handler
+    def count_users():
+        try:
+            # Đếm tổng số người dùng
+            return UserModel.USER_COLLECTION_NAME.count_documents({})
+        except Exception as e:
+            raise ApiError(500, "An error occurred while counting users.")
+
+    @staticmethod
+    @repo_error_handler
+    def update_user_role(user_id, new_role):
+        # Fetch the existing user
+        user = UserModel.find_one_by_id(user_id)
+        if not user:
+            raise ApiError(404, "User not found!")
+
+        # Prevent updates to the specific account
+        if user.get("email") == "admin@yopmail.com":
+            raise ApiError(403, "This account cannot be updated.")
+
+        # Update the user's role
+        updated_user = UserModel.update(user_id, {"role": new_role})
+
+        return pick_user(updated_user)
+
+    @staticmethod
+    @repo_error_handler
+    def delete_user(user_id):
+        """
+        Xóa người dùng và tất cả dữ liệu liên quan.
+
+        Args:
+            user_id: ID của người dùng cần xóa
+
+        Returns:
+            bool: True nếu xóa thành công
+
+        Raises:
+            ApiError: Nếu có lỗi xảy ra trong quá trình xóa
+        """
+        from bson import ObjectId
+        from src.models.folder import FolderModel
+        from src.models.flashcard import FlashcardModel
+        from src.config.cloudinary import CloudinaryService
+
+        # Kiểm tra người dùng có tồn tại không
+        user = UserModel.find_one_by_id(user_id)
+        if not user:
+            raise ApiError(404, "User not found!")
+
+        # Ngăn chặn xóa tài khoản admin@yopmail.com
+        if user.get("email") == "admin@yopmail.com":
+            raise ApiError(403, "This account cannot be deleted.")
+
+        # Ngăn chặn xóa tài khoản có vai trò ADMIN
+        if user.get("role") == "ADMIN":
+            raise ApiError(403, "Admin accounts cannot be deleted. Change the role to CLIENT first.")
+
+        # Chuyển đổi user_id thành ObjectId nếu cần
+        if isinstance(user_id, str):
+            user_id_obj = ObjectId(user_id)
+        else:
+            user_id_obj = user_id
+
+        # Lấy client từ MongoDB
+        client = MongoDB.client
+
+        # Lưu trữ public_ids của hình ảnh cần xóa từ Cloudinary
+        images_to_delete = []
+
+        # Thêm avatar người dùng nếu có
+        if user.get("avatar_public_id"):
+            images_to_delete.append(user["avatar_public_id"])
+
+        # Bắt đầu transaction
+        with client.start_session() as session:
+            try:
+                # Bắt đầu transaction
+                session.start_transaction()
+
+                # 1. Lấy tất cả folder của người dùng
+                user_folders = list(FolderModel.FOLDER_COLLECTION_NAME.find(
+                    {"userId": user_id_obj},
+                    session=session
+                ))
+
+                # 2. Xử lý từng folder
+                for folder in user_folders:
+                    folder_id = folder["_id"]
+
+                    # Lấy tất cả flashcard trong folder
+                    flashcards = list(FlashcardModel.FLASHCARD_COLLECTION_NAME.find(
+                        {"folderId": folder_id},
+                        session=session
+                    ))
+
+                    # Thu thập public_ids của hình ảnh flashcard
+                    for flashcard in flashcards:
+                        if flashcard.get("image_public_id"):
+                            images_to_delete.append(flashcard["image_public_id"])
+
+                    # Xóa tất cả flashcard trong folder
+                    FlashcardModel.FLASHCARD_COLLECTION_NAME.delete_many(
+                        {"folderId": folder_id},
+                        session=session
+                    )
+
+                # 3. Xóa tất cả folder của người dùng
+                FolderModel.FOLDER_COLLECTION_NAME.delete_many(
+                    {"userId": user_id_obj},
+                    session=session
+                )
+
+                # 4. Xóa người dùng
+                result = UserModel.USER_COLLECTION_NAME.delete_one(
+                    {"_id": user_id_obj},
+                    session=session
+                )
+
+                if result.deleted_count == 0:
+                    # Nếu không xóa được người dùng, hủy bỏ transaction
+                    session.abort_transaction()
+                    raise ApiError(500, "Failed to delete user.")
+
+                # Commit transaction nếu tất cả thao tác thành công
+                session.commit_transaction()
+
+            except Exception as e:
+                # Nếu có lỗi, hủy bỏ transaction
+                if session.in_transaction:
+                    session.abort_transaction()
+                raise ApiError(500, f"Error during user deletion: {str(e)}")
+
+        # Sau khi transaction thành công, xóa hình ảnh từ Cloudinary
+        # (Thực hiện bên ngoài transaction vì đây là dịch vụ bên ngoài)
+        for image_id in images_to_delete:
+            try:
+                CloudinaryService.delete_image(image_id)
+            except Exception as e:
+                # Log lỗi nhưng không làm gián đoạn quá trình
+                print(f"Warning: Failed to delete image {image_id} from Cloudinary: {e}")
+
+        return True
+
+    @staticmethod
+    @repo_error_handler
+    def search_users(search_query, limit=10, offset=0):
+        """
+        Tìm kiếm người dùng theo username, email hoặc fullName
+        """
+        query = {}
+
+        # Thêm điều kiện tìm kiếm nếu có
+        if search_query:
+            query["$or"] = [
+                {"username": {"$regex": search_query, "$options": "i"}},
+                {"email": {"$regex": search_query, "$options": "i"}},
+                {"fullName": {"$regex": search_query, "$options": "i"}}
+            ]
+
+        # Đếm tổng số kết quả
+        total_count = UserModel.USER_COLLECTION_NAME.count_documents(query)
+
+        # Lấy danh sách người dùng với phân trang
+        users = list(UserModel.USER_COLLECTION_NAME.find(query).sort("createdAt", -1).skip(offset).limit(limit))
+
+        return users, total_count
+
+
+
+

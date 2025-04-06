@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from src.utils.constants import (
     EMAIL_RULE,
@@ -42,3 +42,11 @@ class UpdateUserValidation(BaseModel):
         if self.new_password and not self.current_password:
             raise ValueError("Current password is required when setting a new password")
         return self
+
+class UpdateUserRoleValidation(BaseModel):
+    # Sử dụng Literal để giới hạn giá trị chỉ được là "CLIENT" hoặc "ADMIN"
+    role: Literal["CLIENT", "ADMIN"] = Field(
+        ...,
+        description="User role, must be either CLIENT or ADMIN"
+    )
+    user_id: str = Field(..., description="User ID to update")

@@ -1,6 +1,7 @@
 from flask import Blueprint, request
 from src.resources.user import UserResource
 from src.middleware.auth_middleware import is_authorized
+from src.middleware.role_middleware import admin_required
 from src.middleware.image_upload import image_upload_middleware
 from asgiref.sync import async_to_sync
 
@@ -30,3 +31,11 @@ def update_route():
         # 2. Chuyển đổi hàm async thành sync
         return async_to_sync(UserResource.update)()
 
+user_bp.route("/admin/users", methods=["GET"])(is_authorized(admin_required(UserResource.get_list_user)))
+@user_bp.route("/admin/users/<user_id>/role", methods=["PUT"])
+@is_authorized
+@admin_required
+def update_user_role_route(user_id):
+    # Lưu user_id vào request.view_args
+    return UserResource.update_user_role(user_id)
+user_bp.route("/admin/users/<user_id>", methods=["DELETE"])(is_authorized(admin_required(UserResource.delete_user)))

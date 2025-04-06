@@ -87,4 +87,20 @@ class UserModel:
                 result["_id"] = str(result["_id"])  # Convert ObjectId to string
             return result
         except Exception as e:
-            raise ApiError(500, "An error occurred while updating the user data.") 
+            raise ApiError(500, "An error occurred while updating the user data.")
+
+    @classmethod
+    def delete_one(cls, user_id):
+        """
+        Xóa một người dùng dựa trên ID.
+
+        Args:
+            user_id: ID của người dùng cần xóa
+
+        Returns:
+            Kết quả của thao tác xóa
+        """
+        if isinstance(user_id, str):
+            user_id = ObjectId(user_id)
+
+        return cls.USER_COLLECTION_NAME.delete_one({"_id": user_id})
