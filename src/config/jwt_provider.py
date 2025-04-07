@@ -1,4 +1,4 @@
-import jwt
+import jwt  
 from datetime import datetime, timedelta
 import logging
 
@@ -18,14 +18,25 @@ class JwtProvider:
             logger.info(f"Token lifetime: {token_life.total_seconds()} seconds")
             
             payload = {**user_info, "exp": expire_at}
+            
+            # Sử dụng PyJWT.encode - CHÚ Ý: Sử dụng PyJWT thay vì jwt
             token = jwt.encode(payload, secret_signature, algorithm="HS256")
             
+            # Nếu token là bytes, chuyển thành string (PyJWT >= 2.0.0 trả về string)
+            if isinstance(token, bytes):
+                token = token.decode('utf-8')
+                
             # Log token để debug
             logger.info(f"Generated token: {token}")
             return token
             
         except Exception as e:
             logger.error(f"Error generating token: {str(e)}")
+            try:
+                logger.error(f"PyJWT version: {jwt.__version__}")
+                logger.error(f"PyJWT available methods: {dir(jwt)}")
+            except Exception as e2:
+                logger.error(f"Error getting PyJWT info: {str(e2)}")
             raise RuntimeError(f"Error generating token: {e}")
 
     @staticmethod
@@ -45,9 +56,12 @@ class JwtProvider:
             
             return decoded
             
-        except jwt.ExpiredSignatureError:
+        except jwt.ExpiredSignatureError:  
             logger.warning("Token has expired")
             raise ValueError("Token has expired")
-        except jwt.InvalidTokenError:
+        except jwt.InvalidTokenError: 
             logger.warning("Invalid token")
             raise ValueError("Invalid token")
+        except Exception as e:
+            logger.error(f"Unexpected error verifying token: {str(e)}")
+            raise RuntimeError(f"Error verifying token: {e}")

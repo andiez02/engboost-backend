@@ -45,9 +45,6 @@ class FlashcardResource:
         validated_data = SaveFlashcardsValidation(**request.json)
         request_data = validated_data.model_dump()
         
-        # Log request data for debugging
-        logging.info(f"Save to folder request data: {request_data}")
-        
         # Call repository method
         result = FlashcardRepository.save_flashcards_to_folder(
             create_new_folder=request_data["create_new_folder"],
